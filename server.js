@@ -16,13 +16,13 @@ app.use(express.json());
 const upload = multer({ storage: multer.memoryStorage() });
 
 // === KONFIGURASI GITHUB ===
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN || "ghp_your_token_here";
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN || "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";
 const REPO_OWNER = process.env.REPO_OWNER || "JuanHawu";
 const REPO_NAME = process.env.REPO_NAME || "creativebackdatabase";
 
 // === CEK TOKEN ===
 if (!GITHUB_TOKEN || GITHUB_TOKEN.startsWith("ghp_your_")) {
-  console.error("❌ GITHUB_TOKEN belum diatur di Railway (Environment Variables).");
+  console.error("GITHUB_TOKEN belum diatur di Railway (Environment Variables).");
   process.exit(1);
 }
 
@@ -51,10 +51,10 @@ async function uploadToGitHub(path, base64Content) {
 
   const text = await res.text();
 
-  // ✅ Validasi: jika bukan JSON, jangan parse → tampilkan pesan jelas
+  // Validasi: jika bukan JSON, jangan parse → tampilkan pesan jelas
   if (!res.ok) {
     if (text.startsWith("<!DOCTYPE")) {
-      throw new Error("❌ GitHub API mengembalikan HTML — pastikan repository PUBLIC dan token valid.");
+      throw new Error("GitHub API mengembalikan HTML — pastikan repository PUBLIC dan token valid.");
     }
     throw new Error(`GitHub upload gagal (${res.status}): ${text.slice(0, 200)}`);
   }
@@ -62,13 +62,13 @@ async function uploadToGitHub(path, base64Content) {
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error(`❌ Respon GitHub tidak valid JSON: ${text.slice(0, 200)}`);
+    throw new Error(`Respon GitHub tidak valid JSON: ${text.slice(0, 200)}`);
   }
 }
 
 // === ROUTE UTAMA ===
 app.get("/", (req, res) => {
-  res.json({ message: "✅ Creative Back Database server is running fine!" });
+  res.json({ message: "Creative Back Database server is running fine!" });
 });
 
 // === ROUTE UNTUK UPLOAD ZIP ===
@@ -87,7 +87,7 @@ app.post("/file", upload.single("zip"), async (req, res) => {
 
     const fileEntries = Object.keys(zip.files).filter((k) => !zip.files[k].dir);
 
-    console.log(`🗂 Uploading ${fileEntries.length} files to GitHub...`);
+    console.log(`Uploading ${fileEntries.length} files to GitHub...`);
 
     for (const filename of fileEntries) {
       const fileData = zip.files[filename];
@@ -108,11 +108,11 @@ app.post("/file", upload.single("zip"), async (req, res) => {
       indexUrl,
     });
   } catch (err) {
-    console.error("🚨 Upload error:", err);
+    console.error("Upload error:", err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });
 
 // === START SERVER ===
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
