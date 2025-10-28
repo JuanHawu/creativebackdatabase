@@ -21,7 +21,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 // 🔹 GitHub repo config
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const REPO_OWNER = process.env.REPO_OWNER || "JuanHawu";
-const REPO_NAME = process.env.REPO_NAME || "creativedatafileabse";
+const REPO_NAME = process.env.REPO_NAME || "creativedatafileabase";
 
 if (!GITHUB_TOKEN) {
   console.error("ERROR: Missing GITHUB_TOKEN in environment variables.");
