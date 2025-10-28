@@ -1,5 +1,4 @@
-// server.js (Backend for Creative File Database)
-// Node.js 18+ (ESM)
+// server.js (Node 18+ / ESM)
 import express from "express";
 import cors from "cors";
 import multer from "multer";
@@ -7,38 +6,34 @@ import JSZip from "jszip";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
 
-// 🔧 Load environment variables (.env or Railway config)
 dotenv.config();
 
-// 🔹 Express setup
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 🔹 File upload config (store in memory)
+// konfigurasi upload in-memory (tidak disimpan di disk)
 const upload = multer({ storage: multer.memoryStorage() });
 
-// 🔹 GitHub repo config
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+// Ganti ini sesuai repo kamu
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN || "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";
 const REPO_OWNER = process.env.REPO_OWNER || "JuanHawu";
-const REPO_NAME = process.env.REPO_NAME || "creativedatafileabase";
+const REPO_NAME = process.env.REPO_NAME || "creativebackdatabase";
 
 if (!GITHUB_TOKEN) {
-  console.error("ERROR: Missing GITHUB_TOKEN in environment variables.");
+  console.error("GITHUB_TOKEN tidak ditemukan di environment variable.");
   process.exit(1);
 }
 
-// 🔹 Utility to convert buffer to Base64
 function toBase64(buffer) {
   return buffer.toString("base64");
 }
 
-// 🔹 Upload single file to GitHub via API
 async function uploadToGitHub(path, base64Content) {
   const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${encodeURIComponent(path)}`;
   const body = {
     message: `Upload ${path}`,
-    content: base64Content
+    content: base64Content,
   };
 
   const res = await fetch(url, {
@@ -46,72 +41,67 @@ async function uploadToGitHub(path, base64Content) {
     headers: {
       Authorization: `token ${GITHUB_TOKEN}`,
       "Content-Type": "application/json",
-      "User-Agent": "creative-uploader"
+      "User-Agent": "creative-uploader",
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
   });
 
+  // Jika responsenya HTML (bukan JSON), tangani agar tidak crash
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(`GitHub upload failed (${res.status}): ${text}`);
+    throw new Error(`GitHub upload failed (${res.status}): ${text.slice(0, 200)}`);
   }
-  return JSON.parse(text);
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Invalid JSON response from GitHub API: ${text.slice(0, 200)}`);
+  }
 }
 
-// Root route (cek koneksi)
 app.get("/", (req, res) => {
-  res.json({ message: "Creative Back Database is running successfully!" });
+  res.json({ message: "Creative Back Database server running successfully!" });
 });
 
-// Upload game ZIP + logo → upload ke GitHub
-app.post("/file", upload.fields([{ name: "zip" }, { name: "logo" }]), async (req, res) => {
+// Upload ZIP file
+app.post("/file", upload.single("zip"), async (req, res) => {
   try {
-    const { name = "game", author = "Unknown", description = "" } = req.body;
-    if (!req.files || !req.files.zip || !req.files.logo) {
-      return res.status(400).json({ success: false, error: "ZIP and logo are required." });
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: "ZIP file is required" });
     }
 
-    const zipBuffer = req.files.zip[0].buffer;
-    const logoBuffer = req.files.logo[0].buffer;
+    const { name = "game", author = "", description = "" } = req.body;
+    const zipBuffer = req.file.buffer;
 
-    // Extract ZIP
+    // baca file ZIP
     const zip = await JSZip.loadAsync(zipBuffer);
     const folderName = `${name.replace(/[^a-zA-Z0-9]/g, "_")}_${Date.now()}`;
-    const fileEntries = Object.keys(zip.files).filter(k => !zip.files[k].dir);
 
-    console.log(`Unggah ${fileEntries.length} files to GitHub...`);
+    const fileEntries = Object.keys(zip.files).filter((k) => !zip.files[k].dir);
 
-    // Upload all extracted files
+    // upload semua file ke GitHub repo
     for (const filename of fileEntries) {
       const fileData = zip.files[filename];
-      const normalized = filename.replace(/^(\.\/)/, ""); // clean path
+      const normalized = filename.replace(/^(\.\/)/, "");
       const contentBuffer = await fileData.async("nodebuffer");
-      await uploadToGitHub(`${folderName}/${normalized}`, toBase64(contentBuffer));
+      const base64 = toBase64(contentBuffer);
+      const path = `${folderName}/${normalized}`;
+      await uploadToGitHub(path, base64);
     }
 
-    // Upload logo.png
-    await uploadToGitHub(`${folderName}/logo.png`, toBase64(logoBuffer));
-
-    // Generate URLs
-    const baseUrl = `https://${REPO_OWNER.toLowerCase()}.github.io/${REPO_NAME}/${folderName}`;
-    const indexUrl = `${baseUrl}/index.html`;
-    const logoUrl = `${baseUrl}/logo.png`;
-
-    console.log(` Upload done: ${indexUrl}`);
+    const indexUrl = `https://${REPO_OWNER.toLowerCase()}.github.io/${REPO_NAME}/${folderName}/index.html`;
 
     return res.json({
       success: true,
-      indexUrl,
-      logoUrl,
       folderName,
-      uploadedCount: fileEntries.length + 1
+      uploadedCount: fileEntries.length,
+      indexUrl,
     });
   } catch (err) {
-    console.error(" Upload error:", err);
-    res.status(500).json({ success: false, error: err.message });
+    console.error("Upload error:", err);
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// 🔹 Run server
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => console.log(` Server running on port ${PORT}`));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
