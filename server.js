@@ -1,4 +1,5 @@
-// server.js (Node 18+ / ESM)
+// server.js (Backend for Creative File Database)
+// Node.js 18+ (ESM)
 import express from "express";
 import cors from "cors";
 import multer from "multer";
@@ -6,26 +7,33 @@ import JSZip from "jszip";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
 
+// 🔧 Load environment variables (.env or Railway config)
 dotenv.config();
 
+// 🔹 Express setup
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+// 🔹 File upload config (store in memory)
 const upload = multer({ storage: multer.memoryStorage() });
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN || "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";
+
+// 🔹 GitHub repo config
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const REPO_OWNER = process.env.REPO_OWNER || "JuanHawu";
 const REPO_NAME = process.env.REPO_NAME || "creativedatafileabse";
 
 if (!GITHUB_TOKEN) {
-  console.error("GITHUB_TOKEN not set in environment variables.");
+  console.error("ERROR: Missing GITHUB_TOKEN in environment variables.");
   process.exit(1);
 }
 
+// 🔹 Utility to convert buffer to Base64
 function toBase64(buffer) {
   return buffer.toString("base64");
 }
 
+// 🔹 Upload single file to GitHub via API
 async function uploadToGitHub(path, base64Content) {
   const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${encodeURIComponent(path)}`;
   const body = {
@@ -38,7 +46,7 @@ async function uploadToGitHub(path, base64Content) {
     headers: {
       Authorization: `token ${GITHUB_TOKEN}`,
       "Content-Type": "application/json",
-      "User-Agent": "creative-file-uploader"
+      "User-Agent": "creative-uploader"
     },
     body: JSON.stringify(body)
   });
@@ -50,40 +58,46 @@ async function uploadToGitHub(path, base64Content) {
   return JSON.parse(text);
 }
 
-app.post("/upload-game", upload.fields([{ name: "zip" }, { name: "logo" }]), async (req, res) => {
+// Root route (cek koneksi)
+app.get("/", (req, res) => {
+  res.json({ message: "Creative Back Database is running successfully!" });
+});
+
+// Upload game ZIP + logo → upload ke GitHub
+app.post("/file", upload.fields([{ name: "zip" }, { name: "logo" }]), async (req, res) => {
   try {
-    const { name = "game", author = "", description = "" } = req.body;
+    const { name = "game", author = "Unknown", description = "" } = req.body;
     if (!req.files || !req.files.zip || !req.files.logo) {
-      return res.status(400).json({ success: false, error: "zip and logo required" });
+      return res.status(400).json({ success: false, error: "ZIP and logo are required." });
     }
 
     const zipBuffer = req.files.zip[0].buffer;
     const logoBuffer = req.files.logo[0].buffer;
 
-    // read zip
+    // Extract ZIP
     const zip = await JSZip.loadAsync(zipBuffer);
     const folderName = `${name.replace(/[^a-zA-Z0-9]/g, "_")}_${Date.now()}`;
-
     const fileEntries = Object.keys(zip.files).filter(k => !zip.files[k].dir);
 
-    // upload each file
+    console.log(`Unggah ${fileEntries.length} files to GitHub...`);
+
+    // Upload all extracted files
     for (const filename of fileEntries) {
       const fileData = zip.files[filename];
-      // Ensure filename path inside zip remains consistent; remove leading './' if any
-      const normalized = filename.replace(/^(\.\/)/, "");
+      const normalized = filename.replace(/^(\.\/)/, ""); // clean path
       const contentBuffer = await fileData.async("nodebuffer");
-      const base64 = toBase64(contentBuffer);
-      // create path: folderName/normalized
-      const path = `${folderName}/${normalized}`;
-      await uploadToGitHub(path, base64);
+      await uploadToGitHub(`${folderName}/${normalized}`, toBase64(contentBuffer));
     }
 
-    // upload logo as logo.png
+    // Upload logo.png
     await uploadToGitHub(`${folderName}/logo.png`, toBase64(logoBuffer));
 
-    // Construct URLs served by GitHub Pages
-    const indexUrl = `https://${REPO_OWNER.toLowerCase()}.github.io/${REPO_NAME}/${folderName}/index.html`;
-    const logoUrl = `https://${REPO_OWNER.toLowerCase()}.github.io/${REPO_NAME}/${folderName}/logo.png`;
+    // Generate URLs
+    const baseUrl = `https://${REPO_OWNER.toLowerCase()}.github.io/${REPO_NAME}/${folderName}`;
+    const indexUrl = `${baseUrl}/index.html`;
+    const logoUrl = `${baseUrl}/logo.png`;
+
+    console.log(` Upload done: ${indexUrl}`);
 
     return res.json({
       success: true,
@@ -92,12 +106,12 @@ app.post("/upload-game", upload.fields([{ name: "zip" }, { name: "logo" }]), asy
       folderName,
       uploadedCount: fileEntries.length + 1
     });
-
   } catch (err) {
-    console.error("Upload error:", err);
-    return res.status(500).json({ success: false, error: err.message });
+    console.error(" Upload error:", err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`✅ Server listening on port ${PORT}`));
+// 🔹 Run server
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => console.log(` Server running on port ${PORT}`));
