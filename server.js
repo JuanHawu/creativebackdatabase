@@ -16,7 +16,7 @@ app.use(express.json());
 const upload = multer({ storage: multer.memoryStorage() });
 
 // === KONFIGURASI GITHUB ===
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN || "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";
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const REPO_OWNER = process.env.REPO_OWNER || "JuanHawu";
 const REPO_NAME = process.env.REPO_NAME || "creativebackdatabase";
 
